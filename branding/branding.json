@@ -1,0 +1,9 @@
+{
+  "_help": "改图标和软件名只需改这里，然后运行 `node branding/apply.mjs`。升级上游后重跑同一条命令即可确定性覆盖品牌，不会冲突。",
+  "appName": "待命名App",
+  "appId": "com.example.app",
+  "assistantName": "",
+  "iconSource": "branding/icon-source.png",
+  "logoSource": "branding/logo-source.png",
+  "appliedAt": "2026-08-04T06:58:35.352Z"
+}
