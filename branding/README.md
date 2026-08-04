@@ -35,16 +35,22 @@
 
 ## 从上游升级（核心：品牌不丢）
 
+> 本仓库与上游**没有共同 git 历史**（基线是从发布版归档直接落地的），因此升级用
+> 「上游文件整体覆盖 + 重贴品牌」的方式最稳，不会因无共同历史而产生海量冲突。
+
 ```bash
 git fetch upstream
-git rebase upstream/main
-node branding/apply.mjs      # 确定性地把品牌覆盖回去
+git checkout upstream/main -- .     # 用上游最新文件整体覆盖工作区（branding/ 不会被覆盖，上游没有它）
+node branding/apply.mjs             # 确定性地把品牌重新贴回去
+git add -A && git commit -m "upgrade: upstream <sha> + reapply branding"
 ```
 
 - `apply.mjs` 每次都**从源图重新生成全部图标**、并**重写软件名**，所以无论上游怎么改这些文件，
   重跑脚本后品牌都恢复到 `branding.json` 定义的状态。
-- 若 rebase 在品牌相关文件（package.json / main.cjs / HTML）上报冲突：
-  对冲突文件执行 `git checkout upstream/main -- <文件>`，再重跑 `node branding/apply.mjs` 即可。
+- 若上游新增了需要我们品牌化的文件（比如新的 UI 窗口），在 `branding/apply.mjs` 的
+  `titleFiles` 列表里补上路径即可，下一轮升级自动生效。
+- （进阶）若你后续用 `git fetch upstream` 成功建立了共同历史，也可改用
+  `git rebase upstream/main` + `node branding/apply.mjs`，效果相同。
 
 ## 已覆盖的品牌点
 
