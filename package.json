@@ -1,6 +1,6 @@
 {
   "name": "bailongma",
-  "productName": "待命名App",
+  "productName": "LiloAvatar",
   "version": "2.1.515",
   "description": "A continuously running digital consciousness framework",
   "type": "module",
@@ -66,8 +66,8 @@
     "playwright": "^1.59.1"
   },
   "build": {
-    "appId": "com.example.app",
-    "productName": "待命名App",
+    "appId": "com.liloavatar.app",
+    "productName": "LiloAvatar",
     "artifactName": "${productName}-Setup-${version}.${ext}",
     "npmRebuild": false,
     "asar": {
@@ -145,7 +145,7 @@
       "uninstallerSidebar": "build/uninstallerSidebar.bmp",
       "createDesktopShortcut": false,
       "createStartMenuShortcut": false,
-      "shortcutName": "待命名App"
+      "shortcutName": "LiloAvatar"
     },
     "mac": {
       "icon": "build/icon.icns",

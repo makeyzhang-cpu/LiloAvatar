@@ -79,8 +79,10 @@ if (!nameActive) {
 
 // ---- 4. 改写软件名 ------------------------------------------------------
 // 只替换「显示名」Bailongma（首字母大写），不动内部标识符 bailongma / BAILONGMA。
+// 同时替换上一次 apply 可能写入的占位名（保证幂等/可重复跑）。
 const DISPLAY_RE = /\bBailongma\b/g;
 const LONGMA_RE = /\bLongma\b/g;
+const PLACEHOLDER_RE = /待命名App/g;
 
 // 4a. package.json
 const pkgPath = resolve(ROOT, "package.json");
@@ -104,8 +106,8 @@ log(`· package.json productName/appId → ${appName} / ${appId || "(未改)"}`)
 // 4b. electron/main.cjs（显示名 + appId 字符串）
 const mainPath = resolve(ROOT, "electron/main.cjs");
 let main = readText(mainPath);
-const before = (main.match(DISPLAY_RE) || []).length;
-main = main.replace(DISPLAY_RE, appName);
+const before = (main.match(DISPLAY_RE) || []).length + (main.match(PLACEHOLDER_RE) || []).length;
+main = main.replace(DISPLAY_RE, appName).replace(PLACEHOLDER_RE, appName);
 if (appId) {
   main = main.replace(/com\.xiaoyuanda\.bailongma/g, appId);
 }
@@ -129,8 +131,8 @@ for (const f of titleFiles) {
   const p = resolve(ROOT, f);
   if (!existsSync(p)) continue;
   let s = readText(p);
-  const n = (s.match(DISPLAY_RE) || []).length + (s.match(LONGMA_RE) || []).length;
-  s = s.replace(DISPLAY_RE, appName).replace(LONGMA_RE, appName);
+  const n = (s.match(DISPLAY_RE) || []).length + (s.match(LONGMA_RE) || []).length + (s.match(PLACEHOLDER_RE) || []).length;
+  s = s.replace(DISPLAY_RE, appName).replace(LONGMA_RE, appName).replace(PLACEHOLDER_RE, appName);
   writeText(p, s);
   if (n) { titleCount += n; log(`· ${f} 替换 ${n} 处`); }
 }

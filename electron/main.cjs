@@ -54,7 +54,7 @@ const STARTUP_PAGE = path.join(__dirname, 'startup.html')
 
 const STARTUP_STEPS = [
   { id: 'port', label: '准备本地端口', detail: '锁定 3721 或备用端口' },
-  { id: 'core', label: '启动本地核心', detail: '加载 待命名App runtime' },
+  { id: 'core', label: '启动本地核心', detail: '加载 LiloAvatar runtime' },
   { id: 'resources', label: '准备工作区', detail: '复制沙箱与音乐资源' },
   { id: 'tools', label: '加载工具槽', detail: '恢复已安装能力' },
   { id: 'api', label: '启动本地 API', detail: 'HTTP / SSE / WebSocket' },
@@ -67,7 +67,7 @@ const startupProgressState = {
   failed: false,
   percent: 0,
   activeStepId: null,
-  message: '正在打开 待命名App',
+  message: '正在打开 LiloAvatar',
   steps: STARTUP_STEPS.map(step => ({ ...step, status: 'pending', startedAt: null, endedAt: null })),
 }
 
@@ -279,7 +279,7 @@ process.on('unhandledRejection', (reason) => {
 process.on('uncaughtException', (err) => {
   console.error('[uncaughtException]', err?.stack || err?.message || String(err))
 })
-console.log(`[main] 待命名App ${app.getVersion()} starting, logs → ${LOG_FILE}`)
+console.log(`[main] LiloAvatar ${app.getVersion()} starting, logs → ${LOG_FILE}`)
 
 // ── GPU 适配器偏好（Windows 多显卡：核显 + 独显笔记本） ──
 // Windows 的逐应用显卡偏好存在 HKCU\...\DirectX\UserGpuPreferences
@@ -397,7 +397,7 @@ function validatePackagedNativeModules() {
   }
 
   if (issues.length) {
-    throw new Error(`Packaged native module integrity check failed:\n${issues.join('\n')}\nPlease close 待命名App and reinstall it with the official installer.`)
+    throw new Error(`Packaged native module integrity check failed:\n${issues.join('\n')}\nPlease close LiloAvatar and reinstall it with the official installer.`)
   }
 }
 
@@ -486,7 +486,7 @@ async function createWindow({ loadStartup = true } = {}) {
     minWidth: 900,
     minHeight: 600,
     backgroundColor: '#0b0b0e',
-    title: '待命名App',
+    title: 'LiloAvatar',
     icon: getAppIconPath(),
     webPreferences: {
       contextIsolation: true,
@@ -574,7 +574,7 @@ function setupTray() {
   const trayImage = nativeImage.createFromPath(getAppIconPath({ trayIcon: true }))
   if (IS_MAC) trayImage.setTemplateImage(true)
   tray = new Tray(trayImage)
-  tray.setToolTip('待命名App')
+  tray.setToolTip('LiloAvatar')
 
   const contextMenu = Menu.buildFromTemplate([
     {
@@ -1038,8 +1038,8 @@ function normalizeTerminalStreamId(value = 'default') {
 }
 
 function createTerminalStreamWindow(payload = {}) {
-  const { title = '待命名App Terminal Stream', stream_id = 'default' } = payload
-  const cleanTitle = String(title || '待命名App Terminal Stream').slice(0, 120)
+  const { title = 'LiloAvatar Terminal Stream', stream_id = 'default' } = payload
+  const cleanTitle = String(title || 'LiloAvatar Terminal Stream').slice(0, 120)
   const streamId = normalizeTerminalStreamId(stream_id)
   const url = `http://127.0.0.1:${backendPort}/terminal-stream?stream_id=${encodeURIComponent(streamId)}`
   const focusWindow = payload.focus !== false
@@ -1385,7 +1385,7 @@ app.whenReady().then(async () => {
   } catch (err) {
     console.error(`[main] Backend startup failed on port ${backendPort || 'unknown'}`, err?.stack || err?.message || err)
     emitStartupProgress({ id: 'core', status: 'error', error: true, message: `启动失败: ${err.message}` })
-    dialog.showErrorBox('Startup failed', `Unable to start the 待命名App backend:\n${err.message}`)
+    dialog.showErrorBox('Startup failed', `Unable to start the LiloAvatar backend:\n${err.message}`)
     app.quit()
     return
   }
@@ -1393,9 +1393,9 @@ app.whenReady().then(async () => {
   try {
     await loadMainApp()
   } catch (err) {
-    console.error('[main] Failed to load 待命名App UI', err?.stack || err?.message || err)
+    console.error('[main] Failed to load LiloAvatar UI', err?.stack || err?.message || err)
     emitStartupProgress({ id: 'interface', status: 'error', error: true, message: `进入界面失败: ${err.message}` })
-    dialog.showErrorBox('Startup failed', `Unable to load the 待命名App interface:\n${err.message}`)
+    dialog.showErrorBox('Startup failed', `Unable to load the LiloAvatar interface:\n${err.message}`)
     app.quit()
     return
   }
