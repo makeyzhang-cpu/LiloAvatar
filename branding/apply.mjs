@@ -40,6 +40,10 @@ const brand = readJSON(resolve(__dirname, "branding.json"));
 const appName = (brand.appName || "").trim();
 const appId = (brand.appId || "").trim();
 const assistantName = (brand.assistantName || "").trim();
+// 上一次 apply 的品牌名（支持多次改名时幂等替换）
+const prevAppName = (brand.previousAppName || "Bailongma").trim();
+const prevAppNameLower = prevAppName.toLowerCase();
+const appNameLower = appName.toLowerCase();
 // 占位名（未提供真实名时）=> 跳过"软件名"改写，但仍生成图标
 const nameActive = appName !== "" && appName !== "TODO";
 
@@ -78,18 +82,23 @@ if (!nameActive) {
 }
 
 // ---- 4. 改写软件名 ------------------------------------------------------
-// 只替换「显示名」Bailongma（首字母大写），不动内部标识符 bailongma / BAILONGMA。
-// 同时替换上一次 apply 可能写入的占位名（保证幂等/可重复跑）。
-const DISPLAY_RE = /\bBailongma\b/g;
+// 替换上游原始名 Bailongma、上一次 apply 写入的 previousAppName，以及占位名。
+// 不动内部标识符 bailongma / BAILONGMA（小写/大写的运行时代码）。
+const DISPLAY_RE = new RegExp(`\\b(?:Bailongma|${escapeRegex(prevAppName)})\\b`, "g");
 const LONGMA_RE = /\bLongma\b/g;
 const PLACEHOLDER_RE = /待命名App/g;
+
+function escapeRegex(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 // 4a. package.json
 const pkgPath = resolve(ROOT, "package.json");
 const pkg = readJSON(pkgPath);
 pkg.productName = appName;
-if (pkg.build) {
+  if (pkg.build) {
   pkg.build.productName = appName;
+  if (pkg.build.win) pkg.build.win.executableName = appName;
   if (pkg.build.nsis) pkg.build.nsis.shortcutName = appName;
   if (pkg.build.mac) {
     if (pkg.build.mac.extendInfo) {
@@ -99,11 +108,34 @@ if (pkg.build) {
     }
   }
   if (appId) pkg.build.appId = appId;
+  // 保持自建发布通道（不被上游 merge 覆盖）
+  if (brand.publishOwner && brand.publishRepo) {
+    if (!pkg.build.publish) pkg.build.publish = [];
+    if (pkg.build.publish.length === 0) pkg.build.publish.push({});
+    pkg.build.publish[0].provider = "github";
+    pkg.build.publish[0].owner = brand.publishOwner;
+    pkg.build.publish[0].repo = brand.publishRepo;
+    if (!pkg.build.publish[0].releaseType) pkg.build.publish[0].releaseType = "release";
+  }
 }
 writeJSON(pkgPath, pkg);
 log(`· package.json productName/appId → ${appName} / ${appId || "(未改)"}`);
 
-// 4b. electron/main.cjs（显示名 + appId 字符串）
+// 4b. NSIS 安装脚本（上游硬编码 Bailongma/bailongma/白龙马）
+const nsisPath = resolve(ROOT, "build/installer.nsh");
+if (existsSync(nsisPath)) {
+  let nsis = readText(nsisPath);
+  nsis = nsis
+    .replace(new RegExp(escapeRegex(prevAppName), "g"), appName)
+    .replace(/Bailongma/g, appName)
+    .replace(new RegExp(escapeRegex(prevAppNameLower), "g"), appNameLower)
+    .replace(/bailongma/g, appNameLower)
+    .replace(/白龙马/g, appName);
+  writeText(nsisPath, nsis);
+  log(`· build/installer.nsh 品牌替换完成`);
+}
+
+// 4c. electron/main.cjs（显示名 + appId 字符串）
 const mainPath = resolve(ROOT, "electron/main.cjs");
 let main = readText(mainPath);
 const before = (main.match(DISPLAY_RE) || []).length + (main.match(PLACEHOLDER_RE) || []).length;
@@ -114,7 +146,7 @@ if (appId) {
 writeText(mainPath, main);
 log(`· electron/main.cjs 替换 ${before} 处显示名 + appId`);
 
-// 4c. 各 UI 窗口 HTML 标题
+// 4d. 各 UI 窗口 HTML 标题
 const titleFiles = [
   "activation.html",
   "architecture-comparison.html",
@@ -138,7 +170,7 @@ for (const f of titleFiles) {
 }
 log(`· HTML 标题共改写 ${titleCount} 处`);
 
-// 4d. AI 人格名（可选，默认不改）
+// 4e. AI 人格名（可选，默认不改）
 if (assistantName) {
   const personaFiles = [
     "src/prompt.js",
@@ -158,6 +190,6 @@ if (assistantName) {
   log(`· AI 人格名 → ${assistantName}（改写 ${pc} 处，仅 prompt 层）`);
 }
 
-writeJSON(resolve(__dirname, "branding.json"), { ...brand, appliedAt: new Date().toISOString() });
+writeJSON(resolve(__dirname, "branding.json"), { ...brand, previousAppName: appName, previousAppId: appId || brand.previousAppId, appliedAt: new Date().toISOString() });
 log(`\n✓ 品牌已应用：软件名「${appName}」、appId「${appId}」、图标来自 ${brand.iconSource}`);
 log("  升级上游后：git fetch upstream && git rebase upstream/main && node branding/apply.mjs");

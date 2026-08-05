@@ -92,8 +92,6 @@
       "skills/**/*",
       "scripts/seed-memories.js",
       "index.html",
-      "dashboard.html",
-      "brain.html",
       "brain-ui.html",
       "website.html",
       "systemPrompt.html",
@@ -125,6 +123,7 @@
       "output": "dist"
     },
     "win": {
+      "executableName": "LiloAvatar",
       "icon": "build/icon.ico",
       "target": [
         {
@@ -160,16 +159,16 @@
       ],
       "category": "public.app-category.productivity",
       "extendInfo": {
-        "NSMicrophoneUsageDescription": "待命名App uses the microphone for voice input when you enable voice features.",
-        "NSSpeechRecognitionUsageDescription": "待命名App may use speech recognition for voice input features."
+        "NSMicrophoneUsageDescription": "LiloAvatar uses the microphone for voice input when you enable voice features.",
+        "NSSpeechRecognitionUsageDescription": "LiloAvatar may use speech recognition for voice input features."
       },
       "artifactName": "${productName}-${version}-mac-${arch}.${ext}"
     },
     "publish": [
       {
         "provider": "github",
-        "owner": "xiaoyuanda666-ship-it",
-        "repo": "BaiLongma",
+        "owner": "makeyzhang-cpu",
+        "repo": "LiloAvatar",
         "releaseType": "release"
       }
     ]

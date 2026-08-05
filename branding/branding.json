@@ -5,5 +5,9 @@
   "assistantName": "",
   "iconSource": "branding/icon-source.png",
   "logoSource": "branding/logo-source.png",
-  "appliedAt": "2026-08-04T07:46:14.132Z"
+  "publishOwner": "makeyzhang-cpu",
+  "publishRepo": "LiloAvatar",
+  "appliedAt": "2026-08-04T09:57:00.685Z",
+  "previousAppName": "LiloAvatar",
+  "previousAppId": "com.liloavatar.app"
 }
