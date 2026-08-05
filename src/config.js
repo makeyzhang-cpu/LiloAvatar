@@ -20,6 +20,10 @@ export const DEFAULT_MOONSHOT_MODEL = 'kimi-k2.6'
 export const DEFAULT_ZHIPU_MODEL = 'glm-5.1'
 export const DEFAULT_MIMO_MODEL = 'mimo-v2.5-pro'
 
+export const CONTEXT_MESSAGE_LIMIT_MIN = 1
+export const CONTEXT_MESSAGE_LIMIT_MAX = 40
+export const DEFAULT_CONTEXT_MESSAGE_LIMIT = 10
+
 export const DEEPSEEK_MODELS = [
   {
     id: 'deepseek-v4-flash',
@@ -959,6 +963,11 @@ function runConfigMigrations() {
 
 export const config = {
   tickInterval: 20 * 60 * 1000, // default idle heartbeat: 20 minutes
+  heartbeat: {
+    enabled: true,
+    defaultIntervalMinutes: 20,
+    updatedAt: null,
+  },
   provider: null,
   model: null,
   apiKey: null,
@@ -969,9 +978,14 @@ export const config = {
   // 默认关闭——只有用户在设置里显式开启才思考。这是「用户显式选择」的开关，
   // 不是 runtime 按难度替模型决定开关 reasoning（那条路 index.js 已注释外掉）。
   thinking: false,
+  contextWindow: {
+    conversationMessageLimit: DEFAULT_CONTEXT_MESSAGE_LIMIT,
+    tickMessageLimit: DEFAULT_CONTEXT_MESSAGE_LIMIT,
+  },
   security: {
     fileSandbox: true,
     execSandbox: true,
+    browserPrivateNetwork: false,
     blockedTools: [],
     updatedAt: null,
   },
@@ -996,11 +1010,36 @@ if (parsedConfig) {
   if (typeof parsedConfig.thinking === 'boolean') {
     config.thinking = parsedConfig.thinking
   }
+  if (parsedConfig.contextWindow && typeof parsedConfig.contextWindow === 'object') {
+    const conversationMessageLimit = Number(parsedConfig.contextWindow.conversationMessageLimit)
+    const tickMessageLimit = Number(parsedConfig.contextWindow.tickMessageLimit)
+    if (Number.isInteger(conversationMessageLimit)
+      && conversationMessageLimit >= CONTEXT_MESSAGE_LIMIT_MIN
+      && conversationMessageLimit <= CONTEXT_MESSAGE_LIMIT_MAX) {
+      config.contextWindow.conversationMessageLimit = conversationMessageLimit
+    }
+    if (Number.isInteger(tickMessageLimit)
+      && tickMessageLimit >= CONTEXT_MESSAGE_LIMIT_MIN
+      && tickMessageLimit <= CONTEXT_MESSAGE_LIMIT_MAX) {
+      config.contextWindow.tickMessageLimit = tickMessageLimit
+    }
+  }
+  if (parsedConfig.heartbeat && typeof parsedConfig.heartbeat === 'object') {
+    const heartbeat = parsedConfig.heartbeat
+    if (typeof heartbeat.enabled === 'boolean') config.heartbeat.enabled = heartbeat.enabled
+    const intervalMinutes = Number(heartbeat.defaultIntervalMinutes)
+    if (Number.isFinite(intervalMinutes) && intervalMinutes >= 1 && intervalMinutes <= 1440) {
+      config.heartbeat.defaultIntervalMinutes = Math.round(intervalMinutes)
+      config.tickInterval = config.heartbeat.defaultIntervalMinutes * 60 * 1000
+    }
+    if (typeof heartbeat.updatedAt === 'string') config.heartbeat.updatedAt = heartbeat.updatedAt
+  }
   if (parsedConfig.security && typeof parsedConfig.security === 'object') {
     const s = parsedConfig.security
     if (typeof s.fileSandbox === 'boolean') config.security.fileSandbox = s.fileSandbox
     if (typeof s.execSandbox === 'boolean') config.security.execSandbox = s.execSandbox
-    if (Array.isArray(s.blockedTools)) config.security.blockedTools = s.blockedTools
+    if (typeof s.browserPrivateNetwork === 'boolean') config.security.browserPrivateNetwork = s.browserPrivateNetwork
+    if (Array.isArray(s.blockedTools)) config.security.blockedTools = normalizeBlockedTools(s.blockedTools)
     if (typeof s.updatedAt === 'string') config.security.updatedAt = s.updatedAt
   }
   if (parsedConfig.network && typeof parsedConfig.network === 'object') {
@@ -1342,24 +1381,95 @@ export function setThinking(enabled) {
   return { thinking: v }
 }
 
+export function getContextWindowConfig() {
+  return {
+    conversationMessageLimit: config.contextWindow.conversationMessageLimit,
+    tickMessageLimit: config.contextWindow.tickMessageLimit,
+  }
+}
+
+export function setContextWindowConfig(updates = {}) {
+  const current = getContextWindowConfig()
+  const next = { ...current }
+  for (const key of ['conversationMessageLimit', 'tickMessageLimit']) {
+    if (!Object.prototype.hasOwnProperty.call(updates, key)) continue
+    const value = Number(updates[key])
+    if (!Number.isInteger(value)) throw new Error('上下文消息条数必须是整数')
+    if (value < CONTEXT_MESSAGE_LIMIT_MIN || value > CONTEXT_MESSAGE_LIMIT_MAX) {
+      throw new Error(`上下文消息条数必须在 ${CONTEXT_MESSAGE_LIMIT_MIN} 到 ${CONTEXT_MESSAGE_LIMIT_MAX} 之间`)
+    }
+    next[key] = value
+  }
+  config.contextWindow = next
+  patchConfig({ contextWindow: { ...next } })
+  return getContextWindowConfig()
+}
+
+export function getHeartbeatConfig() {
+  return {
+    enabled: config.heartbeat.enabled !== false,
+    defaultIntervalMinutes: config.heartbeat.defaultIntervalMinutes,
+    defaultIntervalMs: config.tickInterval,
+    updatedAt: config.heartbeat.updatedAt || null,
+  }
+}
+
+export function setHeartbeatConfig(updates = {}) {
+  const before = getHeartbeatConfig()
+  const next = {
+    enabled: config.heartbeat.enabled,
+    defaultIntervalMinutes: config.heartbeat.defaultIntervalMinutes,
+  }
+
+  if (Object.prototype.hasOwnProperty.call(updates, 'enabled')) {
+    if (typeof updates.enabled !== 'boolean') throw new Error('心跳开关必须是布尔值')
+    next.enabled = updates.enabled
+  }
+
+  if (Object.prototype.hasOwnProperty.call(updates, 'defaultIntervalMinutes')) {
+    const raw = Number(updates.defaultIntervalMinutes)
+    if (!Number.isInteger(raw)) throw new Error('默认心跳间隔必须是整数分钟')
+    if (raw < 1 || raw > 1440) throw new Error('默认心跳间隔必须在 1 到 1440 分钟之间')
+    next.defaultIntervalMinutes = raw
+  }
+
+  const changed = before.enabled !== next.enabled
+    || before.defaultIntervalMinutes !== next.defaultIntervalMinutes
+  config.heartbeat.enabled = next.enabled
+  config.heartbeat.defaultIntervalMinutes = next.defaultIntervalMinutes
+  config.tickInterval = next.defaultIntervalMinutes * 60 * 1000
+  if (changed) config.heartbeat.updatedAt = nowTimestamp()
+  patchConfig({ heartbeat: { ...config.heartbeat } })
+  return getHeartbeatConfig()
+}
+
 export function getSecurity() {
   return {
     fileSandbox: config.security.fileSandbox,
     execSandbox: config.security.execSandbox,
+    browserPrivateNetwork: config.security.browserPrivateNetwork === true,
     blockedTools: [...config.security.blockedTools],
     updatedAt: config.security.updatedAt || null,
   }
+}
+
+function normalizeBlockedTools(values = []) {
+  return [...new Set(values
+    .filter(value => typeof value === 'string')
+    .map(value => ['fetch_url', 'browser_read'].includes(value) ? 'web_read' : value))]
 }
 
 export function setSecurity(updates) {
   const before = getSecurity()
   if (typeof updates.fileSandbox === 'boolean') config.security.fileSandbox = updates.fileSandbox
   if (typeof updates.execSandbox === 'boolean') config.security.execSandbox = updates.execSandbox
+  if (typeof updates.browserPrivateNetwork === 'boolean') config.security.browserPrivateNetwork = updates.browserPrivateNetwork
   if (Array.isArray(updates.blockedTools)) {
-    config.security.blockedTools = updates.blockedTools.filter(t => typeof t === 'string')
+    config.security.blockedTools = normalizeBlockedTools(updates.blockedTools)
   }
   const changed = before.fileSandbox !== config.security.fileSandbox
     || before.execSandbox !== config.security.execSandbox
+    || before.browserPrivateNetwork !== config.security.browserPrivateNetwork
     || JSON.stringify(before.blockedTools) !== JSON.stringify(config.security.blockedTools)
   if (changed) config.security.updatedAt = nowTimestamp()
   patchConfig({ security: { ...config.security } })

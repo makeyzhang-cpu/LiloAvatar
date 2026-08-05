@@ -4,6 +4,10 @@ import { createTyphoonPanel } from './typhoon-panel.js';
 import { createPersonCardPanel } from './person-card-panel.js';
 import { createDocPanel } from './doc-panel.js';
 
+const createAppTitlebar = () => `
+<header class="app-titlebar" aria-label="Window drag area"></header>
+`;
+
 const createGraphStage = () => `
 <div class="grid-overlay"></div>
 <svg id="graph" aria-label="Longma 记忆节点图"></svg>
@@ -87,52 +91,104 @@ const createPrimaryPanel = () => `
 
 const createSecondaryPanel = () => `
 <aside id="panel-l2" class="panel">
-  <header class="panel-stats">
-    <div class="stat">
-      <span class="stat-label">状态</span>
-      <div class="stat-value live" id="conn-state"><span class="live-dot"></span>Token流</div>
-    </div>
-    <div class="stat">
-      <span class="stat-label">节点</span>
-      <div class="stat-value" id="node-count">0</div>
-    </div>
-    <div class="stat">
-      <span class="stat-label">连线</span>
-      <div class="stat-value" id="link-count">0</div>
-    </div>
-    <div class="stat">
-      <span class="stat-label">tok/s</span>
-      <div class="stat-value" id="tok-rate">—</div>
-    </div>
-    <div class="stat" id="mem-recall-stat" title="近 1 小时记忆召回次数 / 平均拉取条数。点击查看明细">
-      <span class="stat-label">召回/h</span>
-      <div class="stat-value" id="mem-recall-rate">—</div>
-    </div>
-    <div class="stat" id="mem-extract-stat" title="近 1 小时记忆抽取次数 / 平均写入条数。点击查看明细">
-      <span class="stat-label">抽取/h</span>
-      <div class="stat-value" id="mem-extract-rate">—</div>
-    </div>
-  </header>
-
   <!-- 专注帧 UI 已隐藏（后端 focus stack 仍在工作，给 LLM 注入上下文）。
        要恢复观察面板时把对应 HTML 还原即可——app.js 渲染逻辑保留着，靠 getElementById 返回 null 自动 no-op。 -->
 
-  <div class="stream-meta">
-    <div>
-      <div class="stream-title-text">自主行动机制 · Tick</div>
-      <div class="stream-subtitle">心跳 · 思考 · 工具</div>
-    </div>
-    <span class="pill pill-warm" id="pill-l2">流式传输</span>
-  </div>
+  <div class="l2-dashboard">
+    <section class="l2-module heartbeat-monitor" aria-labelledby="heartbeat-monitor-title">
+      <header class="panel-stats heartbeat-stats">
+        <div class="stat">
+          <span class="stat-label">状态</span>
+          <div class="stat-value live" id="conn-state"><span class="live-dot"></span>Token流</div>
+        </div>
+        <div class="stat">
+          <span class="stat-label">节点</span>
+          <div class="stat-value" id="node-count">0</div>
+        </div>
+        <div class="stat">
+          <span class="stat-label">连线</span>
+          <div class="stat-value" id="link-count">0</div>
+        </div>
+        <div class="stat">
+          <span class="stat-label">tok/s</span>
+          <div class="stat-value" id="tok-rate">—</div>
+        </div>
+        <div class="stat" id="mem-recall-stat" title="近 1 小时记忆召回次数 / 平均拉取条数。点击查看明细">
+          <span class="stat-label">召回/h</span>
+          <div class="stat-value" id="mem-recall-rate">—</div>
+        </div>
+        <div class="stat" id="mem-extract-stat" title="近 1 小时记忆抽取次数 / 平均写入条数。点击查看明细">
+          <span class="stat-label">抽取/h</span>
+          <div class="stat-value" id="mem-extract-rate">—</div>
+        </div>
+      </header>
+      <div class="l2-module-head">
+        <div>
+          <div class="l2-module-kicker">HEARTBEAT</div>
+          <h2 class="l2-module-title" id="heartbeat-monitor-title">意识心跳</h2>
+        </div>
+        <span class="heartbeat-state" id="heartbeat-state" data-state="waiting">
+          <span class="heartbeat-state-dot"></span>
+          <span id="heartbeat-state-label">等待连接</span>
+        </span>
+      </div>
+      <div class="heartbeat-chart" id="heartbeat-chart" role="img" aria-label="意识心跳实时波形">
+        <svg viewBox="0 0 320 72" preserveAspectRatio="none" aria-hidden="true">
+          <defs>
+            <linearGradient id="heartbeat-fill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="var(--warm)" stop-opacity="0.24"></stop>
+              <stop offset="100%" stop-color="var(--warm)" stop-opacity="0"></stop>
+            </linearGradient>
+          </defs>
+          <path class="heartbeat-gridline" d="M0 36 H320"></path>
+          <path class="heartbeat-area" id="heartbeat-area"></path>
+          <path class="heartbeat-wave" id="heartbeat-wave"></path>
+        </svg>
+        <span class="heartbeat-sweep" aria-hidden="true"></span>
+      </div>
+      <div class="heartbeat-facts">
+        <span><b id="heartbeat-count">0</b> 次心跳</span>
+        <span id="heartbeat-last">等待首次 Tick</span>
+      </div>
+    </section>
 
-  <div class="stream">
-    <div class="stream-inner" id="si-l2"></div>
+    <section class="l2-module action-log-module" aria-labelledby="action-log-title">
+      <div class="l2-module-head compact">
+        <div>
+          <div class="l2-module-kicker">ACTION LOG</div>
+          <h2 class="l2-module-title" id="action-log-title">行动日志</h2>
+        </div>
+      </div>
+      <div class="action-log" id="action-log" aria-live="polite">
+        <div class="action-log-empty" id="action-log-empty">Agent 最近执行的文件、命令和工具动作会显示在这里</div>
+      </div>
+    </section>
+
+    <section class="l2-module cognition-module" aria-labelledby="cognition-title">
+      <div class="l2-module-head compact cognition-head">
+        <div>
+          <div class="l2-module-kicker">LIVE COGNITION</div>
+          <h2 class="l2-module-title" id="cognition-title">思考与工具</h2>
+        </div>
+        <span class="cognition-state" id="cognition-state" data-state="idle">空闲</span>
+      </div>
+      <div class="stream cognition-stream">
+        <div class="stream-inner" id="si-l2">
+          <div class="cognition-empty" id="cognition-empty">心跳触发后，这里会实时显示思考与工具调用</div>
+        </div>
+      </div>
+    </section>
   </div>
 </aside>
 `;
 
 const createConsole = () => `
 <section class="console" id="chat-area">
+  <div class="compact-voice-strip" id="compact-voice-strip" aria-live="polite">
+    <span class="compact-voice-indicator" aria-hidden="true"></span>
+    <span class="compact-voice-label">语音识别</span>
+    <span class="compact-voice-transcript" id="compact-voice-transcript">按住空格键开始说话</span>
+  </div>
   <div id="chat-history">
     <div id="chat-messages"></div>
   </div>
@@ -290,6 +346,24 @@ const createSettingsModal = () => `
                 <span class="settings-toggle-track"></span>
               </label>
               <span class="settings-feedback" id="settings-thinking-feedback"></span>
+            </div>
+          </div>
+          <div class="settings-section">
+            <div class="settings-section-label">上下文消息条数</div>
+            <p class="settings-hint">分别控制普通对话和 Tick 对话每轮注入的最近消息数量。范围 1–40 条，默认均为 10 条，修改后下一轮生效。</p>
+            <div class="settings-row">
+              <label class="settings-label" for="settings-conversation-context-limit">普通对话</label>
+              <input class="settings-range" type="range" id="settings-conversation-context-limit" min="1" max="40" step="1" value="10">
+              <span class="settings-range-value" id="settings-conversation-context-limit-val">10 条</span>
+            </div>
+            <div class="settings-row">
+              <label class="settings-label" for="settings-tick-context-limit">Tick 对话</label>
+              <input class="settings-range" type="range" id="settings-tick-context-limit" min="1" max="40" step="1" value="10">
+              <span class="settings-range-value" id="settings-tick-context-limit-val">10 条</span>
+            </div>
+            <div class="settings-row-action">
+              <button class="settings-save-btn" id="settings-save-context-window" type="button">保存</button>
+              <span class="settings-feedback" id="settings-context-window-feedback"></span>
             </div>
           </div>
         </div>
@@ -730,8 +804,7 @@ const createSettingsModal = () => `
             <div class="settings-section-label">工具黑名单</div>
             <p class="settings-hint">勾选后该工具将被拒绝执行，对话中 Agent 调用时会收到"已被安全策略禁用"错误。</p>
             <div class="settings-row"><label class="settings-label"><input type="checkbox" class="security-blocked-tool" value="exec_command"> exec_command &nbsp;<span style="color:var(--ink2);font-size:12px;">（执行 shell 命令）</span></label></div>
-            <div class="settings-row"><label class="settings-label"><input type="checkbox" class="security-blocked-tool" value="browser_read"> browser_read &nbsp;<span style="color:var(--ink2);font-size:12px;">（浏览器渲染访问）</span></label></div>
-            <div class="settings-row"><label class="settings-label"><input type="checkbox" class="security-blocked-tool" value="fetch_url"> fetch_url &nbsp;<span style="color:var(--ink2);font-size:12px;">（HTTP 请求）</span></label></div>
+            <div class="settings-row"><label class="settings-label"><input type="checkbox" class="security-blocked-tool" value="web_read"> web_read &nbsp;<span style="color:var(--ink2);font-size:12px;">（HTTP / Playwright 网页读取）</span></label></div>
             <div class="settings-row"><label class="settings-label"><input type="checkbox" class="security-blocked-tool" value="web_search"> web_search &nbsp;<span style="color:var(--ink2);font-size:12px;">（网页搜索）</span></label></div>
             <div class="settings-row"><label class="settings-label"><input type="checkbox" class="security-blocked-tool" value="ui_set"> ui_set &nbsp;<span style="color:var(--ink2);font-size:12px;">（投影声明式界面 surface）</span></label></div>
           </div>
@@ -744,6 +817,27 @@ const createSettingsModal = () => `
 
         <!-- ── 高级功能 tab ── -->
         <div class="settings-tab" data-tab="advanced">
+          <div class="settings-section">
+            <div class="settings-section-label">心跳</div>
+            <p class="settings-hint">控制小白龙是否按固定节奏自主思考。关闭后不会再自动触发 L2 心跳，但用户消息和定时提醒仍会正常处理。</p>
+            <div class="settings-row">
+              <label class="settings-label" for="settings-heartbeat-enabled">启用心跳</label>
+              <label class="settings-toggle">
+                <input type="checkbox" id="settings-heartbeat-enabled">
+                <span class="settings-toggle-track"></span>
+              </label>
+            </div>
+            <div class="settings-row">
+              <label class="settings-label" for="settings-heartbeat-interval">默认间隔</label>
+              <input class="settings-input" id="settings-heartbeat-interval" type="number" min="1" max="1440" step="1" inputmode="numeric" value="20">
+              <span class="settings-value">分钟</span>
+            </div>
+            <p class="settings-hint">可设置 1–1440 分钟，默认 20 分钟。任务、初次觉醒以及 Agent 临时调整的节奏可能使用更短间隔。</p>
+            <div class="settings-row-action">
+              <button class="settings-save-btn" id="settings-save-heartbeat" type="button">保存心跳设置</button>
+              <span class="settings-feedback" id="settings-heartbeat-feedback"></span>
+            </div>
+          </div>
           <div class="settings-section">
             <div class="settings-section-label">地图服务</div>
             <p class="settings-hint">为台风监测、位置、行程等功能提供统一真实地图。凭证仅保存在本机加密存储中，不会写入项目源码或返回安全密钥明文。</p>
@@ -828,7 +922,9 @@ const createSettingsModal = () => `
 
 const createVoicePanel = () => `
 <div class="voice-panel" id="voice-panel">
-  <canvas id="voice-canvas" width="160" height="160"></canvas>
+  <div class="voice-canvas-card">
+    <canvas id="voice-canvas" width="160" height="160"></canvas>
+  </div>
   <div class="voice-transcript" id="voice-transcript"></div>
 </div>
 `;
@@ -983,7 +1079,7 @@ const createPanelTabs = () => `
 `;
 
 export function createBrainUiMarkup() {
-  return [
+  const viewportMarkup = [
     createGraphStage(),
     createPrimaryPanel(),
     createSecondaryPanel(),
@@ -1000,6 +1096,8 @@ export function createBrainUiMarkup() {
     createPersonCardPanel(),
     createDocPanel(),
   ].join("\n\n");
+
+  return `${createAppTitlebar()}\n\n<main class="app-viewport">${viewportMarkup}</main>`;
 }
 
 export function renderBrainUiApp(root = document.body) {

@@ -25,9 +25,26 @@ const { pathToFileURL } = require('url')
 const { autoUpdater } = require('electron-updater')
 const wakeWord = require('./wake-word.cjs')
 const devLight = require('./dev-board-light.cjs')
+const { configurePackagedPlaywright } = require('./playwright-runtime.cjs')
 
 const IS_DEV = !app.isPackaged
-const WINDOWS_APP_USER_MODEL_ID = 'com.example.app'
+configurePackagedPlaywright({ isPackaged: !IS_DEV })
+const WINDOWS_APP_USER_MODEL_ID = 'com.liloavatar.app'
+const WINDOWS_TITLE_BAR_HEIGHT = 38
+const WINDOWS_TITLE_BAR_THEMES = Object.freeze({
+  startup: { color: '#0b0d10', symbolColor: '#e7edf3' },
+  midnight: { color: '#111821', symbolColor: '#f3f5fb' },
+  phosphor: { color: '#050806', symbolColor: '#c8f0c8' },
+  violet: { color: '#0d0a1a', symbolColor: '#e4deff' },
+  rose: { color: '#1a0f16', symbolColor: '#f4e0e4' },
+  arctic: { color: '#f5f7f9', symbolColor: '#1a2330' },
+  sand: { color: '#f2ede3', symbolColor: '#2a231a' },
+})
+
+function windowsTitleBarOverlay(theme = 'startup') {
+  const colors = WINDOWS_TITLE_BAR_THEMES[theme] || WINDOWS_TITLE_BAR_THEMES.midnight
+  return { ...colors, height: WINDOWS_TITLE_BAR_HEIGHT }
+}
 
 function resolvePortableRoot() {
   if (IS_DEV) return null
@@ -483,11 +500,15 @@ async function createWindow({ loadStartup = true } = {}) {
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 840,
-    minWidth: 900,
-    minHeight: 600,
+    minWidth: 320,
+    minHeight: 480,
     backgroundColor: '#0b0b0e',
     title: 'LiloAvatar',
     icon: getAppIconPath(),
+    ...(IS_WIN ? {
+      titleBarStyle: 'hidden',
+      titleBarOverlay: windowsTitleBarOverlay(),
+    } : {}),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -534,6 +555,13 @@ async function createWindow({ loadStartup = true } = {}) {
       return
     }
   })
+
+  const sendFullScreenState = (fullscreen) => {
+    if (!mainWindow || mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) return
+    mainWindow.webContents.send('window:fullscreen-changed', Boolean(fullscreen))
+  }
+  mainWindow.on('enter-full-screen', () => sendFullScreenState(true))
+  mainWindow.on('leave-full-screen', () => sendFullScreenState(false))
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:\/\//i.test(url)) {
@@ -1258,6 +1286,18 @@ function setupAutoUpdater() {
 
 ipcMain.handle('app:get-version', () => app.getVersion())
 ipcMain.handle('startup:get-progress', () => cloneStartupProgressState())
+ipcMain.handle('window:is-full-screen', (event) => {
+  const targetWindow = BrowserWindow.fromWebContents(event.sender)
+  return Boolean(targetWindow && !targetWindow.isDestroyed() && targetWindow.isFullScreen())
+})
+ipcMain.handle('window:set-title-bar-theme', (event, theme) => {
+  if (!IS_WIN) return false
+  const targetWindow = BrowserWindow.fromWebContents(event.sender)
+  if (!targetWindow || targetWindow.isDestroyed()) return false
+  const normalizedTheme = typeof theme === 'string' ? theme.trim().toLowerCase() : 'midnight'
+  targetWindow.setTitleBarOverlay(windowsTitleBarOverlay(normalizedTheme))
+  return true
+})
 
 ipcMain.handle('system-screenshot:get-latest', async (_event, options = {}) => {
   const maxAgeMs = Number(options?.maxAgeMs || 15 * 60 * 1000)
@@ -1362,8 +1402,29 @@ app.on('window-all-closed', () => {
   // 只有托盘菜单「退出」才真正退出
 })
 
-app.on('before-quit', () => {
+let browserShutdownBeforeQuit = null
+let browserShutdownComplete = false
+app.on('before-quit', (event) => {
   app.isQuiting = true
+  if (browserShutdownComplete) return
+  const shutdown = globalThis.shutdownBailongmaBrowserTools
+  if (typeof shutdown !== 'function') {
+    browserShutdownComplete = true
+    return
+  }
+  event.preventDefault()
+  if (browserShutdownBeforeQuit) return
+  // The backend runs in this process. Wait for Playwright cleanup, with a hard
+  // upper bound so a broken browser connection cannot trap the quit loop.
+  let browserShutdownTimer
+  browserShutdownBeforeQuit = Promise.race([
+    Promise.resolve().then(() => shutdown()).catch(() => {}),
+    new Promise(resolve => { browserShutdownTimer = setTimeout(resolve, 5_000) }),
+  ]).finally(() => {
+    clearTimeout(browserShutdownTimer)
+    browserShutdownComplete = true
+    app.quit() // second before-quit observes browserShutdownComplete and proceeds
+  })
 })
 
 app.whenReady().then(async () => {

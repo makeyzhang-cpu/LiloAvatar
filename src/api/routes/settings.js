@@ -7,6 +7,8 @@ import {
   config,
   getActivationStatus,
   getEmbeddingConfig,
+  getContextWindowConfig,
+  getHeartbeatConfig,
   getMinimaxKey,
   getNetworkConfig,
   getProviderSummaries,
@@ -17,6 +19,8 @@ import {
   getWebSearchConfig,
   saveLLMSettings,
   setEmbeddingConfig,
+  setContextWindowConfig,
+  setHeartbeatConfig,
   setMinimaxKey,
   setNetworkConfig,
   setSecurity,
@@ -28,6 +32,7 @@ import {
   setWebSearchConfig,
   switchModel,
 } from '../../config.js'
+import { refreshScheduler } from '../../control.js'
 import { EMBEDDING_PROVIDER_PRESETS } from '../../config.js'
 import { TTS_PROVIDERS, TTS_VOICES } from '../../voice/tts-providers.js'
 import { getAgentName, validateAgentName } from '../agent.js'
@@ -55,12 +60,14 @@ export async function handleSettingsRoutes(req, res, url, { requireLocalOrToken,
         models: status.models,
         temperature: config.temperature,
         thinking: config.thinking === true,
+        contextWindow: getContextWindowConfig(),
         apiKey: config.apiKey || '',
       },
       providers: getProviderSummaries(),
       minimax: {
         configured: !!(globalThis.process?.env?.MINIMAX_API_KEY || minimaxKey),
       },
+      heartbeat: getHeartbeatConfig(),
       network: getNetworkConfig(),
     })
     return true
@@ -111,6 +118,35 @@ export async function handleSettingsRoutes(req, res, url, { requireLocalOrToken,
       const { thinking } = await readJsonBody(req)
       const result = setThinking(thinking)
       jsonResponse(res, 200, { ok: true, ...result })
+    } catch (err) {
+      jsonResponse(res, 400, { ok: false, error: err.message })
+    }
+    return true
+  }
+
+  if (req.method === 'POST' && url.pathname === '/settings/context-window') {
+    try {
+      const updates = await readJsonBody(req)
+      const contextWindow = setContextWindowConfig(updates)
+      jsonResponse(res, 200, { ok: true, contextWindow })
+    } catch (err) {
+      jsonResponse(res, 400, { ok: false, error: err.message })
+    }
+    return true
+  }
+
+  if (req.method === 'GET' && url.pathname === '/settings/heartbeat') {
+    jsonResponse(res, 200, { ok: true, heartbeat: getHeartbeatConfig() })
+    return true
+  }
+
+  if (req.method === 'POST' && url.pathname === '/settings/heartbeat') {
+    try {
+      const body = await readJsonBody(req)
+      const heartbeat = setHeartbeatConfig(body)
+      refreshScheduler()
+      emitEvent('heartbeat_settings_updated', heartbeat)
+      jsonResponse(res, 200, { ok: true, heartbeat })
     } catch (err) {
       jsonResponse(res, 400, { ok: false, error: err.message })
     }
